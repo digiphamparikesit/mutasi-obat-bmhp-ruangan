@@ -196,6 +196,68 @@
     .form-grid{grid-template-columns:1fr}
     .topbar-right{gap:4px}
   }
+
+  /* ══ TAB LAPORAN ══ */
+  .laporan-panel{
+    position:fixed;top:0;left:0;right:0;bottom:0;
+    background:#f0f2f5;z-index:45;overflow-y:auto;
+  }
+  .laporan-wrap{max-width:1100px;margin:0 auto;padding:16px}
+  .laporan-filter{
+    display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;
+    background:#fff;padding:14px 16px;border-radius:10px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.07);margin-bottom:14px;
+  }
+  .laporan-filter-group{display:flex;flex-direction:column;gap:4px}
+  .laporan-filter-group label{font-size:11px;font-weight:700;color:#555}
+  .laporan-filter-group select{
+    padding:6px 10px;border:1px solid #d0d5dd;border-radius:6px;
+    font-size:13px;min-width:120px;background:#fff;
+  }
+  .laporan-summary{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px;
+  }
+  .lap-sum-item{
+    background:#fff;border-radius:10px;padding:14px 12px;
+    text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.07);
+    display:flex;flex-direction:column;gap:4px;
+  }
+  .lap-sum-item.lap-sum-total{background:#1a56db}
+  .lap-sum-item.lap-sum-total .lap-sum-num,.lap-sum-item.lap-sum-total .lap-sum-label{color:#fff}
+  .lap-sum-item.lap-sum-total .lap-sum-label{opacity:0.85}
+  .lap-sum-num{font-size:24px;font-weight:700;color:#1a56db;line-height:1}
+  .lap-sum-label{font-size:11px;color:#666;font-weight:600}
+  .laporan-table-wrap{
+    background:#fff;border-radius:10px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.07);overflow-x:auto;
+  }
+  .lap-table{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}
+  .lap-table th{
+    background:#1a56db;color:#fff;padding:10px 12px;
+    text-align:center;font-size:12px;font-weight:700;
+    white-space:nowrap;position:sticky;top:0;z-index:2;
+  }
+  .lap-table th.col-nama{text-align:left;position:sticky;left:0;z-index:3;min-width:180px}
+  .lap-table td{padding:9px 12px;border-bottom:1px solid #f0f2f5;text-align:center;font-size:12px}
+  .lap-table td.col-nama{
+    text-align:left;font-weight:600;color:#374151;background:#fff;
+    position:sticky;left:0;z-index:1;border-right:2px solid #e5e7eb;
+  }
+  .lap-table tr:hover td{background:#f8faff}
+  .lap-table tr:hover td.col-nama{background:#f8faff}
+  .lap-num{font-weight:700;color:#1a56db}
+  .lap-num-0{color:#d1d5db}
+  .lap-table tfoot td{font-weight:700;background:#f0f5ff;color:#1a56db;border-top:2px solid #c7d7f5}
+  .lap-table tfoot td.col-nama{background:#1a56db;color:#fff;border-top:2px solid #1447c0}
+  .lap-info{font-size:11px;color:#888;padding:8px 16px;text-align:right}
+  @media print{
+    .sticky-header,.laporan-filter button,.btn-rko,.notif-banner{display:none!important}
+    .laporan-panel{position:static;overflow:visible}
+  }
+  @media(max-width:700px){
+    .laporan-summary{grid-template-columns:repeat(2,1fr)}
+    .lap-sum-item.lap-sum-total{grid-column:1/-1}
+  }
 </style>
 </head>
 <body>
@@ -464,6 +526,64 @@
   </div><!-- end content-wrapper -->
 </div><!-- end halaman-app -->
 
+<!-- TAB LAPORAN — full width, di luar content-wrapper -->
+<div id="tab-laporan" class="tab-panel laporan-panel" style="display:none">
+  <div class="laporan-wrap">
+
+    <!-- FILTER BAR -->
+    <div class="laporan-filter">
+      <div class="laporan-filter-group">
+        <label>Tahun</label>
+        <select id="lap-tahun" onchange="renderLaporan()"></select>
+      </div>
+      <div class="laporan-filter-group">
+        <label>Bulan</label>
+        <select id="lap-bulan" onchange="renderLaporan()">
+          <option value="">Semua Bulan</option>
+          <option value="01">Januari</option>
+          <option value="02">Februari</option>
+          <option value="03">Maret</option>
+          <option value="04">April</option>
+          <option value="05">Mei</option>
+          <option value="06">Juni</option>
+          <option value="07">Juli</option>
+          <option value="08">Agustus</option>
+          <option value="09">September</option>
+          <option value="10">Oktober</option>
+          <option value="11">November</option>
+          <option value="12">Desember</option>
+        </select>
+      </div>
+      <div class="laporan-filter-group">
+        <label>Status</label>
+        <select id="lap-status" onchange="renderLaporan()">
+          <option value="">Semua Status</option>
+          <option value="Belum Dilayani">Belum Dilayani</option>
+          <option value="Sudah Dilayani">Sudah Dilayani</option>
+          <option value="Batal">Batal</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="loadLaporan()">↻ Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="cetakLaporan()">🖨️ Cetak</button>
+    </div>
+
+    <!-- RINGKASAN TOTAL -->
+    <div class="laporan-summary" id="lap-summary">
+      <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-obat">-</span><span class="lap-sum-label">Mutasi Obat</span></div>
+      <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-bmhp">-</span><span class="lap-sum-label">Mutasi BMHP</span></div>
+      <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-b3">-</span><span class="lap-sum-label">Mutasi B3</span></div>
+      <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-cairan">-</span><span class="lap-sum-label">Mutasi Cairan</span></div>
+      <div class="lap-sum-item lap-sum-total"><span class="lap-sum-num" id="lap-tot-all">-</span><span class="lap-sum-label">Total ID Mutasi</span></div>
+    </div>
+
+    <!-- TABEL -->
+    <div class="laporan-table-wrap" id="lap-table-wrap">
+      <div class="loading"><div class="spinner"></div><br>Memuat data...</div>
+    </div>
+
+  </div>
+</div>
+
 <!-- MODAL -->
 <div class="modal-overlay" id="modal-update">
   <div class="modal">
@@ -660,7 +780,9 @@ function doLogout() {
 // ── TAB ──
 function renderTabBar() {
   const isGudang=["gudang_obat","gudang_bhp","kepala_gudang"].includes(user.role);
-  const tabs=isGudang?[["gudang","📊 Dashboard Gudang"],["form","📋 Form Amprahan"]]:[["form","📋 Form Amprahan"],["status","📌 Status Saya"]];
+  const tabs=isGudang
+    ?[["gudang","📊 Dashboard"],["laporan","📈 Laporan"],["form","📋 Form Amprahan"]]
+    :[["form","📋 Form Amprahan"],["status","📌 Status Saya"]];
   document.getElementById("tab-bar").innerHTML=tabs.map(([id,label])=>`<div class="tab" id="tabn-${id}" onclick="switchTab('${id}')">${label}</div>`).join("");
 }
 function switchTab(name) {
@@ -672,9 +794,191 @@ function switchTab(name) {
   if(tabEl) tabEl.classList.add("active");
   if(name==="status") loadAmprahan();
   if(name==="gudang") { loadGudang(); ajustSplitHeight(); }
+  if(name==="laporan") loadLaporan();
 }
 
-// ── FORM ──
+// ── LAPORAN ────────────────────────────────────────────────────
+let dataLaporan = []; // cache raw data dari server untuk laporan
+
+async function loadLaporan() {
+  const wrap = document.getElementById("lap-table-wrap");
+  if (!wrap) return;
+  wrap.innerHTML = loadingHtml();
+  // Reset summary
+  ["lap-tot-obat","lap-tot-bmhp","lap-tot-b3","lap-tot-cairan","lap-tot-all"]
+    .forEach(id => { const el=document.getElementById(id); if(el) el.textContent="-"; });
+
+  try {
+    // Ambil semua data sesuai role (backend sudah filter per role)
+    const res = await api({ action:"getAmprahan", role:user.role, nama:user.nama, ruangan:user.ruangan });
+    if (!res.ok) { wrap.innerHTML=`<div class="empty">Gagal memuat data: ${res.msg}</div>`; return; }
+    dataLaporan = res.data;
+    // Isi dropdown tahun dari data yang ada
+    isiDropdownTahun(dataLaporan);
+    renderLaporan();
+  } catch(e) {
+    wrap.innerHTML=`<div class="empty">Gagal terhubung ke server.</div>`;
+  }
+}
+
+function isiDropdownTahun(data) {
+  const sel = document.getElementById("lap-tahun");
+  if (!sel) return;
+  const tahunSet = new Set();
+  data.forEach(d => {
+    const t = normTgl(d.tglAmprahan).substring(0,4);
+    if (t && t.length===4) tahunSet.add(t);
+  });
+  const sorted = [...tahunSet].sort().reverse();
+  const curVal = sel.value;
+  sel.innerHTML = `<option value="">Semua Tahun</option>` +
+    sorted.map(t=>`<option value="${t}"${t===curVal?" selected":""}>${t}</option>`).join("");
+  // Default ke tahun sekarang jika ada
+  const tahunIni = new Date().getFullYear().toString();
+  if (!curVal && sorted.includes(tahunIni)) sel.value = tahunIni;
+}
+
+function renderLaporan() {
+  const wrap = document.getElementById("lap-table-wrap");
+  if (!wrap || !dataLaporan.length) return;
+
+  const tahun  = document.getElementById("lap-tahun")?.value  || "";
+  const bulan  = document.getElementById("lap-bulan")?.value  || "";
+  const status = document.getElementById("lap-status")?.value || "";
+
+  // Filter data sesuai pilihan
+  const filtered = dataLaporan.filter(d => {
+    const tgl = normTgl(d.tglAmprahan); // YYYY-MM-DD
+    const mT = !tahun || tgl.startsWith(tahun);
+    const mB = !bulan || tgl.substring(5,7) === bulan;
+    const mS = !status || d.status === status;
+    return mT && mB && mS;
+  });
+
+  if (!filtered.length) {
+    wrap.innerHTML=`<div class="empty">Tidak ada data untuk filter yang dipilih.</div>`;
+    ["lap-tot-obat","lap-tot-bmhp","lap-tot-b3","lap-tot-cairan","lap-tot-all"]
+      .forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent="0"; });
+    return;
+  }
+
+  // Hitung ID Mutasi UNIK per ruangan per jenis
+  // Struktur: { ruangan: { obat: Set<noIdMutasi>, bmhp: Set, b3: Set, cairan: Set } }
+  const rekap = {};
+  filtered.forEach(d => {
+    const ruangan = d.asalRuangan || "-";
+    const jenis   = (d.jenisAmprahan || "").trim().toLowerCase();
+    const idMutasi = String(d.noIdMutasi ?? "").trim();
+    if (!rekap[ruangan]) rekap[ruangan] = { obat:new Set(), bmhp:new Set(), b3:new Set(), cairan:new Set() };
+    if (jenis === "obat"   && idMutasi) rekap[ruangan].obat.add(idMutasi);
+    if (jenis === "bmhp"   && idMutasi) rekap[ruangan].bmhp.add(idMutasi);
+    if (jenis === "b3"     && idMutasi) rekap[ruangan].b3.add(idMutasi);
+    if (jenis === "cairan" && idMutasi) rekap[ruangan].cairan.add(idMutasi);
+  });
+
+  // Urutkan ruangan A-Z
+  const ruanganList = Object.keys(rekap).sort();
+
+  // Hitung total keseluruhan
+  let totObat=0, totBmhp=0, totB3=0, totCairan=0;
+  ruanganList.forEach(r => {
+    totObat   += rekap[r].obat.size;
+    totBmhp   += rekap[r].bmhp.size;
+    totB3     += rekap[r].b3.size;
+    totCairan += rekap[r].cairan.size;
+  });
+  const totAll = totObat + totBmhp + totB3 + totCairan;
+
+  // Update summary cards
+  const updEl = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  updEl("lap-tot-obat",   totObat);
+  updEl("lap-tot-bmhp",   totBmhp);
+  updEl("lap-tot-b3",     totB3);
+  updEl("lap-tot-cairan", totCairan);
+  updEl("lap-tot-all",    totAll);
+
+  // Label periode untuk header
+  const BULAN_NAMA = ["","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  const periodeLabel = (tahun||"Semua Tahun") + (bulan ? " — "+BULAN_NAMA[parseInt(bulan)] : "");
+
+  // Render tabel
+  const baris = ruanganList.map((r,i) => {
+    const o  = rekap[r].obat.size;
+    const bh = rekap[r].bmhp.size;
+    const b3 = rekap[r].b3.size;
+    const ca = rekap[r].cairan.size;
+    const tot= o+bh+b3+ca;
+    return `<tr>
+      <td style="text-align:center;color:#888;padding:9px 8px;font-size:12px">${i+1}</td>
+      <td class="col-nama">${r}</td>
+      <td class="${o?'lap-num':'lap-num-0'}" style="text-align:center;padding:9px 12px;font-size:12px">${o||"—"}</td>
+      <td class="${bh?'lap-num':'lap-num-0'}" style="text-align:center;padding:9px 12px;font-size:12px">${bh||"—"}</td>
+      <td class="${b3?'lap-num':'lap-num-0'}" style="text-align:center;padding:9px 12px;font-size:12px">${b3||"—"}</td>
+      <td class="${ca?'lap-num':'lap-num-0'}" style="text-align:center;padding:9px 12px;font-size:12px">${ca||"—"}</td>
+      <td class="lap-num" style="text-align:center;padding:9px 12px;font-size:12px;font-weight:700">${tot}</td>
+    </tr>`;
+  }).join("");
+
+  wrap.innerHTML = `
+    <div class="lap-info" style="padding:10px 14px 6px">📅 Periode: ${periodeLabel} &nbsp;|&nbsp; ${ruanganList.length} ruangan &nbsp;|&nbsp; ${filtered.length} transaksi</div>
+    <table class="lap-table" id="laporan-tabel">
+      <thead>
+        <tr>
+          <th style="width:40px">No</th>
+          <th class="col-nama">Nama Ruangan</th>
+          <th>Obat</th>
+          <th>BMHP</th>
+          <th>B3</th>
+          <th>Cairan</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>${baris}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2" class="col-nama">TOTAL</td>
+          <td>${totObat}</td>
+          <td>${totBmhp}</td>
+          <td>${totB3}</td>
+          <td>${totCairan}</td>
+          <td>${totAll}</td>
+        </tr>
+      </tfoot>
+    </table>`;
+}
+
+async function cetakLaporan() {
+  const tabel = document.getElementById("laporan-tabel");
+  if (!tabel) { showToast("Tidak ada data untuk dicetak.","error"); return; }
+  const tahun  = document.getElementById("lap-tahun")?.value  || "Semua Tahun";
+  const bulan  = document.getElementById("lap-bulan")?.options[document.getElementById("lap-bulan").selectedIndex]?.text || "Semua Bulan";
+  const status = document.getElementById("lap-status")?.value || "Semua Status";
+  const win = window.open("","_blank");
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Laporan Amprahan Farmasi</title>
+    <style>
+      body{font-family:Arial,sans-serif;font-size:12px;padding:20px}
+      h2{color:#1a56db;margin-bottom:4px}
+      p{font-size:11px;color:#666;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#1a56db;color:#fff;padding:8px 10px;text-align:center;font-size:11px}
+      th.lap-ruangan{text-align:left}
+      td{padding:6px 10px;border-bottom:1px solid #e0e0e0;font-size:11px}
+      td.lap-num{text-align:center}
+      td.lap-ruangan{text-align:left}
+      td.lap-no{text-align:center;color:#888}
+      tfoot td{font-weight:700;background:#f0f2f5;border-top:2px solid #1a56db}
+      .lap-num-total{font-weight:700;color:#1a56db}
+      @media print{button{display:none}}
+    </style></head><body>
+    <h2>💊 Laporan Amprahan Farmasi</h2>
+    <p>Periode: ${tahun} — ${bulan} &nbsp;|&nbsp; Status: ${status} &nbsp;|&nbsp; Dicetak: ${new Date().toLocaleDateString("id-ID")}</p>
+    ${tabel.outerHTML}
+    <script>window.onload=()=>window.print()<\/script>
+    </body></html>`);
+  win.document.close();
+}
+
 async function kirimAmprahan() {
   const idmutasi=document.getElementById("f-idmutasi").value.trim();
   const jenis=document.getElementById("f-jenis").value;
