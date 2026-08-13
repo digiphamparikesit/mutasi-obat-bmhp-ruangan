@@ -59,7 +59,6 @@
     padding:10px 12px 16px 16px;
     border-right:1px solid #e0e0e0;
     background:#f0f2f5;
-    /* Tinggi diatur oleh ajustSplitHeight() via JS agar freeze sempurna */
   }
 
   /* Kolom kanan: daftar transaksi — scroll sendiri, kiri freeze */
@@ -69,7 +68,6 @@
     overflow-y:auto;       /* HANYA kolom kanan yang scroll */
     padding:10px 16px 16px 12px;
     background:#f0f2f5;
-    /* Tinggi diatur oleh ajustSplitHeight() via JS */
   }
 
   /* ── CONTENT NORMAL (tab form & status — full width) ── */
@@ -634,309 +632,740 @@ let notifInterval=null, idKnown=new Set(), notifAktif=false;
 // ── NOTIFIKASI ──
 function cekStatusNotif() {
   if (!("Notification" in window)) return;
-  if (Notification.permission==="granted") { notifAktif=true; setTombolNotifAktif(); }
-  else if (Notification.permission==="default") {
-    document.getElementById("btn-notif").style.display="inline-block";
-    document.getElementById("notif-banner").style.display="flex";
+  if (Notification.permission === "granted") {
+    notifAktif = true;
+    setTombolNotifAktif();
+  } else if (Notification.permission === "default") {
+    const btnNotif = document.getElementById("btn-notif");
+    const banner = document.getElementById("notif-banner");
+    if (btnNotif) btnNotif.style.display = "inline-block";
+    if (banner) banner.style.display = "flex";
   }
 }
+
 function setTombolNotifAktif() {
-  const btn=document.getElementById("btn-notif");
-  btn.style.display="inline-block"; btn.textContent="🔔 Notifikasi Aktif";
-  btn.classList.add("aktif"); btn.onclick=null;
-  document.getElementById("notif-banner").style.display="none";
+  const btn = document.getElementById("btn-notif");
+  const banner = document.getElementById("notif-banner");
+  if (btn) {
+    btn.style.display = "inline-block";
+    btn.classList.add("aktif");
+    btn.textContent = "🔔 Notifikasi Aktif";
+  }
+  if (banner) banner.style.display = "none";
 }
+
 function mintaIzinNotif() {
-  if (!("Notification" in window)) { showToast("Browser tidak mendukung notifikasi.","error"); return; }
+  if (!("Notification" in window)) {
+    showToast("Browser tidak mendukung notifikasi", "error");
+    return;
+  }
   Notification.requestPermission().then(perm => {
-    if (perm==="granted") {
-      notifAktif=true; setTombolNotifAktif();
-      showToast("✅ Notifikasi berhasil diaktifkan!","success");
-      new Notification("💊 Amprahan Farmasi",{ body:"Notifikasi aktif!", icon:"https://cdn-icons-png.flaticon.com/512/822/822115.png" });
+    if (perm === "granted") {
+      notifAktif = true;
+      setTombolNotifAktif();
+      showToast("Notifikasi berhasil diaktifkan!", "success");
     } else {
-      showToast("Izin notifikasi ditolak.","error");
-      document.getElementById("notif-banner").style.display="none";
+      showToast("Izin notifikasi ditolak", "error");
     }
   });
 }
-function kirimNotifBrowser(judul,pesan) {
-  if (!notifAktif||Notification.permission!=="granted") return;
-  const n=new Notification(judul,{ body:pesan, icon:"https://cdn-icons-png.flaticon.com/512/822/822115.png" });
-  n.onclick=()=>{ window.focus(); n.close(); };
+
+function kirimNotifSistem(judul, body) {
+  if (notifAktif && Notification.permission === "granted") {
+    try {
+      new Notification(judul, { body: body, icon: "💊" });
+    } catch(e) {}
+  }
 }
-async function autoRefresh() {
-  if (!user) return;
-  if (!["gudang_obat","gudang_bhp","kepala_gudang"].includes(user.role)) return;
-  try {
-    const res=await api({ action:"getAmprahan", role:user.role, nama:user.nama, ruangan:user.ruangan });
-    if (!res.ok) return;
-    const semua=res.data.filter(d=>isJenisSesuaiRole(d.jenisAmprahan,user.role));
-    if (idKnown.size===0) { semua.forEach(d=>idKnown.add(d.idTransaksi)); return; }
-    const baru=semua.filter(d=>!idKnown.has(d.idTransaksi));
-    if (baru.length>0) {
-      baru.forEach(d=>{ idKnown.add(d.idTransaksi); kirimNotifBrowser("🔔 Amprahan Baru Masuk!",d.asalRuangan+" · "+d.jenisAmprahan+" · "+d.kategori); });
-      dataGudang=semua; dupSet=getDuplikatIdMutasi(dataGudang);
-      hitungStatLokal(dataGudang); renderGudang();
-      showToast("🔔 "+baru.length+" amprahan baru masuk!","info");
+
+function mulaiPollingNotif() {
+  if (notifInterval) clearInterval(notifInterval);
+  notifInterval = setInterval(() => {
+    if (user && isGudang(user.ruangan)) {
+      loadGudang(true);
     }
-  } catch(e){}
-}
-function mulaiAutoRefresh() {
-  if (notifInterval) clearInterval(notifInterval);
-  idKnown.clear();
-  notifInterval=setInterval(autoRefresh,30000);
-  autoRefresh();
-}
-function stopAutoRefresh() {
-  if (notifInterval) clearInterval(notifInterval);
-  notifInterval=null; idKnown.clear();
+  }, 15000);
 }
 
-// ── API ──
-async function api(body) {
-  const res=await fetch(API_URL,{ method:"POST", body:JSON.stringify(body) });
-  return res.json();
-}
-function isJenisSesuaiRole(jenis,role) {
-  const j=(jenis||"").trim().toLowerCase();
-  if (role==="gudang_obat") return JENIS_OBAT_LIST.includes(j);
-  if (role==="gudang_bhp")  return JENIS_BHP_LIST.includes(j);
-  return true;
+// ── UTILS & AUTH ──
+function showToast(msg, type="info") {
+  const t = document.getElementById("toast");
+  if (!t) return;
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  setTimeout(() => { t.className = "toast"; }, 3000);
 }
 
-// ── LOGIN ──
-async function doLogin() {
-  const nama=document.getElementById("login-nama").value.trim();
-  const ruangan=document.getElementById("login-ruangan").value.trim();
-  const errEl=document.getElementById("login-error");
-  const btn=document.getElementById("btn-login");
-  if (!nama||!ruangan) { showErr(errEl,"Nama dan ruangan wajib dipilih/diisi."); return; }
-  btn.disabled=true; btn.textContent="Memeriksa..."; errEl.style.display="none";
-  try {
-    const res=await api({ action:"login", nama, ruangan });
-    if (res.ok) { user={ nama:res.nama, ruangan:res.ruangan, role:(res.role||"peminta").trim().toLowerCase() }; masukApp(); }
-    else showErr(errEl,res.msg);
-  } catch(e) { showErr(errEl,"Gagal terhubung ke server. Periksa koneksi internet."); }
-  btn.disabled=false; btn.textContent="Masuk";
-}
-function showErr(el,msg){ el.textContent=msg; el.style.display="block"; }
-
-function masukApp() {
-  document.getElementById("halaman-login").style.display="none";
-  const appEl=document.getElementById("halaman-app");
-  appEl.classList.add("aktif");
-
-  // Hitung tinggi viewport untuk layout split
-  ajustSplitHeight();
-
-  const roleLabel={ peminta:"User Peminta", gudang_obat:"Gudang Obat", gudang_bhp:"Gudang BHP / Alkes", kepala_gudang:"Kepala Gudang" };
-  document.getElementById("topbar-info").textContent=user.nama+" · "+user.ruangan+" · "+(roleLabel[user.role]||user.role);
-  document.getElementById("f-ruangan").value=user.ruangan;
-  document.getElementById("f-petugas").value=user.nama;
-  document.getElementById("f-tanggal").value=hariIni();
-  renderTabBar();
-  const isGudang=["gudang_obat","gudang_bhp","kepala_gudang"].includes(user.role);
-  if (isGudang) { cekStatusNotif(); mulaiAutoRefresh(); }
-  document.getElementById("blok-rko").style.display="block";
-  cekStatusRKO();
-  if (user.role!=="kepala_gudang"&&PENGUMUMAN_AKTIF) {
-    document.getElementById("pg-judul").textContent=PENGUMUMAN.judul;
-    document.getElementById("pg-isi").textContent=PENGUMUMAN.isi;
-    document.getElementById("pg-waktu").textContent=PENGUMUMAN.waktu;
-    document.getElementById("blok-pengumuman").style.display="block";
-  }
-  switchTab(isGudang?"gudang":"form");
+function isGudang(ruang) {
+  return String(ruang || "").toUpperCase().includes("GUDANG FARMASI");
 }
 
-// Hitung tinggi split panel agar kiri & kanan isi penuh viewport
-function ajustSplitHeight() {
-  function doAjust() {
-    const header = document.querySelector(".sticky-header");
-    const banner = document.querySelector(".banner-area");
-    if (!header) return;
-    const used = header.offsetHeight + (banner ? banner.offsetHeight : 0);
-    const h = (window.innerHeight - used) + "px";
-    document.querySelectorAll(".panel-kiri,.panel-kanan").forEach(el => el.style.height = h);
-  }
-  doAjust();
-  window.addEventListener("resize", doAjust);
+function formatTanggalIndo(str) {
+  if (!str) return "-";
+  const p = str.split("-");
+  if (p.length !== 3) return str;
+  return `${p[2]}/${p[1]}/${p[0]}`;
 }
 
-function doLogout() {
-  stopAutoRefresh();
-  user=null; allAmprahan=[]; dataGudang=[]; dupSet=new Set();
-  document.getElementById("halaman-login").style.display="flex";
-  document.getElementById("halaman-app").classList.remove("aktif");
-  document.getElementById("login-nama").value="";
-  document.getElementById("login-ruangan").selectedIndex=0;
-  document.getElementById("login-error").style.display="none";
-  document.getElementById("btn-notif").style.display="none";
-  document.getElementById("btn-notif").classList.remove("aktif");
-  document.getElementById("blok-pengumuman").style.display="none";
-  document.getElementById("blok-rko").style.display="none";
-  notifAktif=false;
-}
+function doLogin() {
+  const nama = document.getElementById("login-nama").value.trim();
+  const ruangan = document.getElementById("login-ruangan").value;
+  const err = document.getElementById("login-error");
 
-// ── TAB ──
-function renderTabBar() {
-  const isGudang=["gudang_obat","gudang_bhp","kepala_gudang"].includes(user.role);
-  const tabs=isGudang
-    ?[["gudang","📊 Dashboard"],["laporan","📈 Laporan"],["form","📋 Form Amprahan"]]
-    :[["form","📋 Form Amprahan"],["status","📌 Status Saya"]];
-  document.getElementById("tab-bar").innerHTML=tabs.map(([id,label])=>`<div class="tab" id="tabn-${id}" onclick="switchTab('${id}')">${label}</div>`).join("");
-}
-function switchTab(name) {
-  document.querySelectorAll(".tab-panel").forEach(p=>p.style.display="none");
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  const panel=document.getElementById("tab-"+name);
-  const tabEl=document.getElementById("tabn-"+name);
-  if(panel) panel.style.display = name==="gudang" ? "flex" : "block";
-  if(tabEl) tabEl.classList.add("active");
-  if(name==="status") loadAmprahan();
-  if(name==="gudang") { loadGudang(); ajustSplitHeight(); }
-  if(name==="laporan") loadLaporan();
-}
-
-// ── LAPORAN ────────────────────────────────────────────────────
-let dataLaporan = []; // cache raw data dari server untuk laporan
-
-async function loadLaporan() {
-  const wrap = document.getElementById("lap-table-wrap");
-  if (!wrap) return;
-  wrap.innerHTML = loadingHtml();
-  // Reset summary
-  ["lap-tot-obat","lap-tot-bmhp","lap-tot-b3","lap-tot-cairan","lap-tot-all"]
-    .forEach(id => { const el=document.getElementById(id); if(el) el.textContent="-"; });
-
-  try {
-    // Ambil semua data sesuai role (backend sudah filter per role)
-    const res = await api({ action:"getAmprahan", role:user.role, nama:user.nama, ruangan:user.ruangan });
-    if (!res.ok) { wrap.innerHTML=`<div class="empty">Gagal memuat data: ${res.msg}</div>`; return; }
-    dataLaporan = res.data;
-    // Isi dropdown tahun dari data yang ada
-    isiDropdownTahun(dataLaporan);
-    renderLaporan();
-  } catch(e) {
-    wrap.innerHTML=`<div class="empty">Gagal terhubung ke server.</div>`;
-  }
-}
-
-function isiDropdownTahun(data) {
-  const sel = document.getElementById("lap-tahun");
-  if (!sel) return;
-  const tahunSet = new Set();
-  data.forEach(d => {
-    const t = normTgl(d.tglAmprahan).substring(0,4);
-    if (t && t.length===4) tahunSet.add(t);
-  });
-  const sorted = [...tahunSet].sort().reverse();
-  const curVal = sel.value;
-  sel.innerHTML = `<option value="">Semua Tahun</option>` +
-    sorted.map(t=>`<option value="${t}"${t===curVal?" selected":""}>${t}</option>`).join("");
-  // Default ke tahun sekarang jika ada
-  const tahunIni = new Date().getFullYear().toString();
-  if (!curVal && sorted.includes(tahunIni)) sel.value = tahunIni;
-}
-
-function renderLaporan() {
-  const wrap = document.getElementById("lap-table-wrap");
-  if (!wrap || !dataLaporan.length) return;
-
-  const tahun  = document.getElementById("lap-tahun")?.value  || "";
-  const bulan  = document.getElementById("lap-bulan")?.value  || "";
-  const status = document.getElementById("lap-status")?.value || "";
-
-  // Filter data sesuai pilihan
-  const filtered = dataLaporan.filter(d => {
-    const tgl = normTgl(d.tglAmprahan); // YYYY-MM-DD
-    const mT = !tahun || tgl.startsWith(tahun);
-    const mB = !bulan || tgl.substring(5,7) === bulan;
-    const mS = !status || d.status === status;
-    return mT && mB && mS;
-  });
-
-  if (!filtered.length) {
-    wrap.innerHTML=`<div class="empty">Tidak ada data untuk filter yang dipilih.</div>`;
-    ["lap-tot-obat","lap-tot-bmhp","lap-tot-b3","lap-tot-cairan","lap-tot-all"]
-      .forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent="0"; });
+  if (!nama || !ruangan) {
+    err.textContent = "Harap isi nama dan pilih ruangan!";
+    err.style.display = "block";
     return;
   }
 
-  // Hitung ID Mutasi UNIK per ruangan per jenis
-  // Struktur: { ruangan: { obat: Set<noIdMutasi>, bmhp: Set, b3: Set, cairan: Set } }
-  const rekap = {};
-  filtered.forEach(d => {
-    const ruangan = d.asalRuangan || "-";
-    const jenis   = (d.jenisAmprahan || "").trim().toLowerCase();
-    const idMutasi = String(d.noIdMutasi ?? "").trim();
-    if (!rekap[ruangan]) rekap[ruangan] = { obat:new Set(), bmhp:new Set(), b3:new Set(), cairan:new Set() };
-    if (jenis === "obat"   && idMutasi) rekap[ruangan].obat.add(idMutasi);
-    if (jenis === "bmhp"   && idMutasi) rekap[ruangan].bmhp.add(idMutasi);
-    if (jenis === "b3"     && idMutasi) rekap[ruangan].b3.add(idMutasi);
-    if (jenis === "cairan" && idMutasi) rekap[ruangan].cairan.add(idMutasi);
+  err.style.display = "none";
+  user = { nama, ruangan };
+  localStorage.setItem("amprahan_user", JSON.stringify(user));
+  initApp();
+}
+
+function doLogout() {
+  localStorage.removeItem("amprahan_user");
+  user = null;
+  if (notifInterval) clearInterval(notifInterval);
+  document.getElementById("halaman-app").classList.remove("aktif");
+  document.getElementById("halaman-login").style.display = "flex";
+}
+
+function initApp() {
+  document.getElementById("halaman-login").style.display = "none";
+  document.getElementById("halaman-app").classList.add("aktif");
+
+  document.getElementById("topbar-info").textContent = `${user.nama} (${user.ruangan})`;
+
+  // Render Tabs
+  const tabBar = document.getElementById("tab-bar");
+  let htmlTab = "";
+
+  if (isGudang(user.ruangan)) {
+    htmlTab = `
+      <div class="tab active" onclick="switchTab('gudang', this)">📦 Kelola Gudang</div>
+      <div class="tab" onclick="switchTab('laporan', this)">📊 Laporan Mutasi</div>
+    `;
+  } else {
+    htmlTab = `
+      <div class="tab active" onclick="switchTab('form', this)">📋 Form Amprahan</div>
+      <div class="tab" onclick="switchTab('status', this)">🔍 Status Amprahan</div>
+    `;
+  }
+  tabBar.innerHTML = htmlTab;
+
+  // Render Pengumuman & RKO
+  if (PENGUMUMAN_AKTIF) {
+    document.getElementById("pg-judul").textContent = PENGUMUMAN.judul;
+    document.getElementById("pg-isi").textContent = PENGUMUMAN.isi;
+    document.getElementById("pg-waktu").textContent = PENGUMUMAN.waktu;
+    document.getElementById("blok-pengumuman").style.display = "block";
+  }
+
+  if (!isGudang(user.ruangan)) {
+    document.getElementById("blok-rko").style.display = "block";
+    cekStatusRko();
+  }
+
+  // Set default form
+  const today = new Date().toISOString().split("T")[0];
+  if (document.getElementById("f-tanggal")) document.getElementById("f-tanggal").value = today;
+  if (document.getElementById("f-ruangan")) document.getElementById("f-ruangan").value = user.ruangan;
+  if (document.getElementById("f-petugas")) document.getElementById("f-petugas").value = user.nama;
+
+  cekStatusNotif();
+
+  if (isGudang(user.ruangan)) {
+    switchTab('gudang', tabBar.children[0]);
+    mulaiPollingNotif();
+  } else {
+    switchTab('form', tabBar.children[0]);
+  }
+}
+
+function tutupPengumuman() {
+  document.getElementById("blok-pengumuman").style.display = "none";
+}
+
+function switchTab(tabName, el) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  if (el) el.classList.add("active");
+
+  document.querySelectorAll(".tab-panel").forEach(p => p.style.display = "none");
+
+  const target = document.getElementById(`tab-${tabName}`);
+  if (target) {
+    if (tabName === "gudang") {
+      target.style.display = "flex";
+      loadGudang();
+    } else {
+      target.style.display = "block";
+      if (tabName === "status") loadAmprahan();
+      if (tabName === "laporan") {
+        initLaporanFilters();
+        loadLaporan();
+      }
+    }
+  }
+}
+
+function cekStatusRko() {
+  const badge = document.getElementById("rko-status-badge");
+  fetch(`${API_URL}?action=checkRko&ruangan=${encodeURIComponent(user.ruangan)}`)
+    .then(r => r.json())
+    .then(res => {
+      if (res.status === "success") {
+        if (res.sudahRko) {
+          badge.className = "rko-status hijau";
+          badge.textContent = "✅ RKO Sudah Diisi";
+        } else {
+          badge.className = "rko-status merah";
+          badge.textContent = "⚠️ RKO Belum Diisi";
+        }
+      }
+    })
+    .catch(() => {
+      badge.className = "rko-status kosong";
+      badge.textContent = "❓ Status RKO Tidak Diketahui";
+    });
+}
+
+// ── FORM & AMPRAHAN USER ──
+function kirimAmprahan() {
+  const tgl = document.getElementById("f-tanggal").value;
+  const idmutasi = document.getElementById("f-idmutasi").value.trim();
+  const jenis = document.getElementById("f-jenis").value;
+  const kategori = document.getElementById("f-kategori").value;
+  const ket = document.getElementById("f-keterangan").value.trim();
+
+  if (!tgl || !idmutasi || !jenis || !kategori) {
+    showToast("Mohon lengkapi semua field wajib!", "error");
+    return;
+  }
+
+  const btn = document.getElementById("btn-kirim");
+  btn.disabled = true;
+  btn.textContent = "Sending...";
+
+  const payload = {
+    action: "addAmprahan",
+    ruangan: user.ruangan,
+    petugas: user.nama,
+    tanggal: tgl,
+    idmutasi: idmutasi,
+    jenis: jenis,
+    kategori: kategori,
+    keterangan: ket
+  };
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  })
+    .then(r => r.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.textContent = "Kirim Amprahan";
+      if (res.status === "success") {
+        showToast("Amprahan berhasil dikirim!", "success");
+        resetForm();
+      } else {
+        showToast("Gagal mengirim amprahan", "error");
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = "Kirim Amprahan";
+      showToast("Gagal terhubung ke server", "error");
+    });
+}
+
+function resetForm() {
+  document.getElementById("f-idmutasi").value = "";
+  document.getElementById("f-jenis").value = "";
+  document.getElementById("f-kategori").value = "";
+  document.getElementById("f-keterangan").value = "";
+}
+
+function loadAmprahan() {
+  const container = document.getElementById("list-status");
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><br>Memuat data...</div>';
+
+  fetch(`${API_URL}?action=getAmprahan&ruangan=${encodeURIComponent(user.ruangan)}`)
+    .then(r => r.json())
+    .then(res => {
+      if (res.status === "success") {
+        allAmprahan = res.data || [];
+        pagStatus = 1;
+        renderListStatus();
+      } else {
+        container.innerHTML = '<div class="empty">Gagal memuat data</div>';
+      }
+    })
+    .catch(() => {
+      container.innerHTML = '<div class="empty">Gagal menghubungkan ke server</div>';
+    });
+}
+
+function setFilterStatus(st, el) {
+  filterStatus = st;
+  document.querySelectorAll("#tab-status .chip").forEach(c => c.classList.remove("active"));
+  if (el) el.classList.add("active");
+  pagStatus = 1;
+  renderListStatus();
+}
+
+function renderListStatus() {
+  let list = allAmprahan;
+  if (filterStatus !== "semua") {
+    list = list.filter(x => x.status === filterStatus);
+  }
+
+  const container = document.getElementById("list-status");
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty">Tidak ada data amprahan</div>';
+    renderPagination(0, 1, "pag-status", () => {});
+    return;
+  }
+
+  const start = (pagStatus - 1) * PAGE_SIZE;
+  const paged = list.slice(start, start + PAGE_SIZE);
+
+  let html = "";
+  paged.forEach(item => {
+    let cls = "belum";
+    if (item.status === "Sudah Dilayani") cls = "sudah";
+    if (item.status === "Batal") cls = "batal";
+
+    html += `
+      <div class="amp-item ${cls}">
+        <div class="amp-header">
+          <span class="amp-id">ID Mutasi: ${item.idmutasi || '-'}</span>
+          <span class="badge badge-${cls}">${item.status}</span>
+        </div>
+        <div class="amp-meta">
+          <span>📅 ${formatTanggalIndo(item.tanggal)}</span>
+          <span>📦 ${item.jenis || '-'}</span>
+          <span>⚡ ${item.kategori || '-'}</span>
+          <span>👤 ${item.petugas || '-'}</span>
+        </div>
+        ${item.keterangan ? `<div class="amp-keterangan"><b>Ket:</b> ${item.keterangan}</div>` : ''}
+        ${item.catatanGudang ? `<div class="amp-catatan"><b>Catatan Gudang:</b> ${item.catatanGudang}</div>` : ''}
+      </div>
+    `;
   });
 
-  // Urutkan ruangan A-Z
-  const ruanganList = Object.keys(rekap).sort();
-
-  // Hitung total keseluruhan
-  let totObat=0, totBmhp=0, totB3=0, totCairan=0;
-  ruanganList.forEach(r => {
-    totObat   += rekap[r].obat.size;
-    totBmhp   += rekap[r].bmhp.size;
-    totB3     += rekap[r].b3.size;
-    totCairan += rekap[r].cairan.size;
+  container.innerHTML = html;
+  renderPagination(list.length, pagStatus, "pag-status", (p) => {
+    pagStatus = p;
+    renderListStatus();
   });
-  const totAll = totObat + totBmhp + totB3 + totCairan;
+}
 
-  // Update summary cards
-  const updEl = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-  updEl("lap-tot-obat",   totObat);
-  updEl("lap-tot-bmhp",   totBmhp);
-  updEl("lap-tot-b3",     totB3);
-  updEl("lap-tot-cairan", totCairan);
-  updEl("lap-tot-all",    totAll);
+// ── KELOLA GUDANG ──
+function loadGudang(silent=false) {
+  const container = document.getElementById("list-gudang");
+  if (!silent) {
+    container.innerHTML = '<div class="loading"><div class="spinner"></div><br>Memuat data...</div>';
+  }
 
-  // Label periode untuk header
-  const BULAN_NAMA = ["","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
-  const periodeLabel = (tahun||"Semua Tahun") + (bulan ? " — "+BULAN_NAMA[parseInt(bulan)] : "");
+  fetch(`${API_URL}?action=getGudang`)
+    .then(r => r.json())
+    .then(res => {
+      if (res.status === "success") {
+        const newData = res.data || [];
 
-  // Render tabel
-  const baris = ruanganList.map((r,i) => {
-    const o  = rekap[r].obat.size;
-    const bh = rekap[r].bmhp.size;
-    const b3 = rekap[r].b3.size;
-    const ca = rekap[r].cairan.size;
-    const tot= o+bh+b3+ca;
-    return `<tr>
-      <td style="text-align:center;color:#888;padding:9px 8px;font-size:12px">${i+1}</td>
-      <td class="col-nama">${r}</td>
-      <td class="${o?'lap-num':'lap-num-0'}" style="text-align:center;padding:9px 12px;font-size:12px">${o||"—"}</td>
-      <td class="${bh?'lap-num':'lap-num-0'}" style="text-align:center;padding:9px 12px;font-size:12px">${bh||"—"}</td>
-      <td class="${b3?'lap-num':'lap-num-0'}" style="text-align:center;padding:9px 12px;font-size:12px">${b3||"—"}</td>
-      <td class="${ca?'lap-num':'lap-num-0'}" style="text-align:center;padding:9px 12px;font-size:12px">${ca||"—"}</td>
-      <td class="lap-num" style="text-align:center;padding:9px 12px;font-size:12px;font-weight:700">${tot}</td>
-    </tr>`;
-  }).join("");
+        // Notifikasi item baru jika polling
+        if (silent && idKnown.size > 0) {
+          newData.forEach(x => {
+            if (!idKnown.has(x.id) && x.status === "Belum Dilayani") {
+              kirimNotifSistem("Amprahan Baru Masuk!", `${x.ruangan} - ID Mutasi: ${x.idmutasi}`);
+            }
+          });
+        }
 
-  wrap.innerHTML = `
-    <div class="lap-info" style="padding:10px 14px 6px">📅 Periode: ${periodeLabel} &nbsp;|&nbsp; ${ruanganList.length} ruangan &nbsp;|&nbsp; ${filtered.length} transaksi</div>
-    <table class="lap-table" id="laporan-tabel">
+        idKnown.clear();
+        newData.forEach(x => idKnown.add(x.id));
+
+        dataGudang = newData;
+        hitungDuplikatMutasi();
+        updateStatistikGudang();
+        renderGudang();
+      } else if (!silent) {
+        container.innerHTML = '<div class="empty">Gagal memuat data</div>';
+      }
+    })
+    .catch(() => {
+      if (!silent) container.innerHTML = '<div class="empty">Gagal terhubung ke server</div>';
+    });
+}
+
+function hitungDuplikatMutasi() {
+  dupSet.clear();
+  const counts = {};
+  dataGudang.forEach(x => {
+    if (x.idmutasi) {
+      const idm = String(x.idmutasi).trim();
+      counts[idm] = (counts[idm] || 0) + 1;
+    }
+  });
+  Object.keys(counts).forEach(idm => {
+    if (counts[idm] > 1) dupSet.add(idm);
+  });
+}
+
+function updateStatistikGudang() {
+  const tot = dataGudang.length;
+  const belum = dataGudang.filter(x => x.status === "Belum Dilayani").length;
+  const sudah = dataGudang.filter(x => x.status === "Sudah Dilayani").length;
+  const batal = dataGudang.filter(x => x.status === "Batal").length;
+
+  const sg = document.getElementById("stat-grid");
+  if (sg) {
+    sg.children[0].querySelector(".stat-num").textContent = tot;
+    sg.children[1].querySelector(".stat-num").textContent = belum;
+    sg.children[2].querySelector(".stat-num").textContent = sudah;
+    sg.children[3].querySelector(".stat-num").textContent = batal;
+  }
+}
+
+function setFilterGudang(st, el) {
+  filterGudang = st;
+  const parent = el.parentElement;
+  parent.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+  el.classList.add("active");
+  resetPagGudang();
+}
+
+function setFilterKategori(kat, el) {
+  filterKategori = kat;
+  const parent = el.parentElement;
+  parent.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+  el.classList.add("active");
+  resetPagGudang();
+}
+
+function setFilterJenis(jns, el) {
+  filterJenis = jns;
+  const parent = el.parentElement;
+  parent.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+  el.classList.add("active");
+  resetPagGudang();
+}
+
+function resetFilterTanggal() {
+  document.getElementById("filter-tgl-dari").value = "";
+  document.getElementById("filter-tgl-sampai").value = "";
+  resetPagGudang();
+}
+
+function filterHariIni() {
+  const today = new Date().toISOString().split("T")[0];
+  document.getElementById("filter-tgl-dari").value = today;
+  document.getElementById("filter-tgl-sampai").value = today;
+  resetPagGudang();
+}
+
+function resetPagGudang() {
+  pagGudang = 1;
+  renderGudang();
+}
+
+function renderGudang() {
+  const q = document.getElementById("search-gudang") ? document.getElementById("search-gudang").value.toLowerCase() : "";
+  const tglDari = document.getElementById("filter-tgl-dari") ? document.getElementById("filter-tgl-dari").value : "";
+  const tglSampai = document.getElementById("filter-tgl-sampai") ? document.getElementById("filter-tgl-sampai").value : "";
+
+  let list = dataGudang;
+
+  if (filterGudang !== "semua") {
+    list = list.filter(x => x.status === filterGudang);
+  }
+  if (filterKategori !== "semua") {
+    list = list.filter(x => x.kategori === filterKategori);
+  }
+  if (filterJenis !== "semua") {
+    list = list.filter(x => x.jenis === filterJenis);
+  }
+  if (tglDari) {
+    list = list.filter(x => x.tanggal >= tglDari);
+  }
+  if (tglSampai) {
+    list = list.filter(x => x.tanggal <= tglSampai);
+  }
+  if (q) {
+    list = list.filter(x => 
+      String(x.ruangan||"").toLowerCase().includes(q) ||
+      String(x.petugas||"").toLowerCase().includes(q) ||
+      String(x.idmutasi||"").toLowerCase().includes(q) ||
+      String(x.keterangan||"").toLowerCase().includes(q)
+    );
+  }
+
+  const container = document.getElementById("list-gudang");
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty">Tidak ada data ditemukan</div>';
+    renderPagination(0, 1, "pag-gudang", () => {});
+    return;
+  }
+
+  const start = (pagGudang - 1) * PAGE_SIZE;
+  const paged = list.slice(start, start + PAGE_SIZE);
+
+  let html = "";
+  paged.forEach(item => {
+    let cls = "belum";
+    if (item.status === "Sudah Dilayani") cls = "sudah";
+    if (item.status === "Batal") cls = "batal";
+
+    const isDup = item.idmutasi && dupSet.has(String(item.idmutasi).trim());
+
+    html += `
+      <div class="amp-item ${cls}">
+        <div class="amp-header">
+          <div>
+            <span style="font-weight:700;font-size:13px;color:#1a56db">${item.ruangan}</span>
+            <div style="font-size:11px;color:#555;margin-top:2px">
+              ID Mutasi: ${isDup ? `<span class="amp-idmutasi-dup">${item.idmutasi}</span>` : `<b>${item.idmutasi || '-'}</b>`}
+            </div>
+          </div>
+          <span class="badge badge-${cls}">${item.status}</span>
+        </div>
+        <div class="amp-meta">
+          <span>📅 ${formatTanggalIndo(item.tanggal)}</span>
+          <span>📦 ${item.jenis || '-'}</span>
+          <span>⚡ ${item.kategori || '-'}</span>
+          <span>👤 ${item.petugas || '-'}</span>
+        </div>
+        ${item.keterangan ? `<div class="amp-keterangan"><b>Ket:</b> ${item.keterangan}</div>` : ''}
+        ${item.catatanGudang ? `<div class="amp-catatan"><b>Catatan Gudang:</b> ${item.catatanGudang}</div>` : ''}
+        <div style="margin-top:10px;text-align:right">
+          <button class="btn btn-secondary btn-sm" onclick="bukaModalUpdate('${item.id}')">✏️ Edit Status</button>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+  renderPagination(list.length, pagGudang, "pag-gudang", (p) => {
+    pagGudang = p;
+    renderGudang();
+  });
+}
+
+function bukaModalUpdate(id) {
+  editId = id;
+  const item = dataGudang.find(x => x.id === id);
+  if (!item) return;
+
+  const detail = document.getElementById("modal-detail");
+  detail.innerHTML = `
+    <div class="modal-row"><span>Ruangan</span><span><b>${item.ruangan}</b></span></div>
+    <div class="modal-row"><span>ID Mutasi</span><span><b>${item.idmutasi || '-'}</b></span></div>
+    <div class="modal-row"><span>Jenis / Kategori</span><span>${item.jenis || '-'} / ${item.kategori || '-'}</span></div>
+    <div class="modal-row"><span>Petugas</span><span>${item.petugas || '-'}</span></div>
+  `;
+
+  document.getElementById("modal-status").value = item.status || "Belum Dilayani";
+  document.getElementById("modal-catatan").value = item.catatanGudang || "";
+
+  document.getElementById("modal-update").classList.add("open");
+}
+
+function tutupModal() {
+  document.getElementById("modal-update").classList.remove("open");
+  editId = null;
+}
+
+function simpanStatus() {
+  if (!editId) return;
+
+  const st = document.getElementById("modal-status").value;
+  const cat = document.getElementById("modal-catatan").value.trim();
+
+  const btn = document.getElementById("btn-simpan-status");
+  btn.disabled = true;
+  btn.textContent = "Saving...";
+
+  const payload = {
+    action: "updateStatus",
+    id: editId,
+    status: st,
+    catatanGudang: cat
+  };
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  })
+    .then(r => r.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.textContent = "Simpan";
+      if (res.status === "success") {
+        showToast("Status berhasil diperbarui!", "success");
+        tutupModal();
+        loadGudang();
+      } else {
+        showToast("Gagal memperbarui status", "error");
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = "Simpan";
+      showToast("Gagal terhubung ke server", "error");
+    });
+}
+
+// ── TAB LAPORAN (REVISI RUMUS AGREGASI) ──
+function initLaporanFilters() {
+  const selTahun = document.getElementById("lap-tahun");
+  if (selTahun && selTahun.children.length === 0) {
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= currentYear - 3; y--) {
+      const opt = document.createElement("option");
+      opt.value = y;
+      opt.textContent = y;
+      selTahun.appendChild(opt);
+    }
+  }
+}
+
+function loadLaporan() {
+  const wrap = document.getElementById("lap-table-wrap");
+  wrap.innerHTML = '<div class="loading"><div class="spinner"></div><br>Memuat laporan mutasi...</div>';
+
+  fetch(`${API_URL}?action=getGudang`)
+    .then(r => r.json())
+    .then(res => {
+      if (res.status === "success") {
+        dataGudang = res.data || [];
+        renderLaporan();
+      } else {
+        wrap.innerHTML = '<div class="empty">Gagal memuat data laporan</div>';
+      }
+    })
+    .catch(() => {
+      wrap.innerHTML = '<div class="empty">Gagal menghubungkan ke server</div>';
+    });
+}
+
+function renderLaporan() {
+  const thn = document.getElementById("lap-tahun") ? document.getElementById("lap-tahun").value : "";
+  const bln = document.getElementById("lap-bulan") ? document.getElementById("lap-bulan").value : "";
+  const st = document.getElementById("lap-status") ? document.getElementById("lap-status").value : "";
+
+  let filtered = dataGudang;
+
+  // Filter berdasarkan Tahun, Bulan, dan Status
+  if (thn) {
+    filtered = filtered.filter(x => x.tanggal && x.tanggal.startsWith(thn));
+  }
+  if (bln) {
+    filtered = filtered.filter(x => {
+      if (!x.tanggal) return false;
+      const parts = x.tanggal.split("-");
+      return parts.length >= 2 && parts[1] === bln.padStart(2, '0');
+    });
+  }
+  if (st) {
+    filtered = filtered.filter(x => x.status === st);
+  }
+
+  // Agregasi Data Berdasarkan Ruangan & Jenis
+  const mapRuangan = {};
+
+  // Daftar default penanganan jenis obat jika JENIS_OBAT_LIST tidak terdefinisi
+  const listObatTarget = (typeof JENIS_OBAT_LIST !== "undefined" && Array.isArray(JENIS_OBAT_LIST))
+    ? JENIS_OBAT_LIST.map(v => String(v).toLowerCase())
+    : [];
+
+  filtered.forEach(item => {
+    const r = (item.ruangan || "LAIN-LAIN").toUpperCase();
+    if (!mapRuangan[r]) {
+      mapRuangan[r] = { obat: 0, bmhp: 0, b3: 0, cairan: 0, total: 0 };
+    }
+
+    const jns = String(item.jenis || "").trim().toLowerCase();
+
+    // Rumus Pengelompokan Fleksibel
+    if (listObatTarget.includes(jns) || jns.includes("obat")) {
+      mapRuangan[r].obat++;
+    } else if (jns.includes("bmhp") || jns.includes("alkes")) {
+      mapRuangan[r].bmhp++;
+    } else if (jns.includes("b3") || jns.includes("bahan berbahaya")) {
+      mapRuangan[r].b3++;
+    } else if (jns.includes("cairan") || jns.includes("infus")) {
+      mapRuangan[r].cairan++;
+    } else {
+      // Default jika variasi nama jenis lain terdeteksi
+      mapRuangan[r].obat++; 
+    }
+    
+    mapRuangan[r].total++;
+  });
+
+  // Hitung Totals
+  let totObat = 0, totBmhp = 0, totB3 = 0, totCairan = 0, totAll = 0;
+  Object.values(mapRuangan).forEach(val => {
+    totObat += val.obat;
+    totBmhp += val.bmhp;
+    totB3 += val.b3;
+    totCairan += val.cairan;
+    totAll += val.total;
+  });
+
+  // Render Kartu Ringkasan
+  if (document.getElementById("lap-tot-obat")) document.getElementById("lap-tot-obat").textContent = totObat;
+  if (document.getElementById("lap-tot-bmhp")) document.getElementById("lap-tot-bmhp").textContent = totBmhp;
+  if (document.getElementById("lap-tot-b3")) document.getElementById("lap-tot-b3").textContent = totB3;
+  if (document.getElementById("lap-tot-cairan")) document.getElementById("lap-tot-cairan").textContent = totCairan;
+  if (document.getElementById("lap-tot-all")) document.getElementById("lap-tot-all").textContent = totAll;
+
+  // Render Tabel Laporan
+  const wrap = document.getElementById("lap-table-wrap");
+  const listRuangan = Object.keys(mapRuangan).sort();
+
+  if (listRuangan.length === 0) {
+    wrap.innerHTML = '<div class="empty">Tidak ada data mutasi untuk periode ini</div>';
+    return;
+  }
+
+  let html = `
+    <table class="lap-table">
       <thead>
         <tr>
-          <th style="width:40px">No</th>
-          <th class="col-nama">Nama Ruangan</th>
-          <th>Obat</th>
-          <th>BMHP</th>
-          <th>B3</th>
-          <th>Cairan</th>
-          <th>Total</th>
+          <th class="col-nama">Nama Ruangan / Depo</th>
+          <th>Mutasi Obat</th>
+          <th>Mutasi BMHP</th>
+          <th>Mutasi B3</th>
+          <th>Mutasi Cairan</th>
+          <th>Total Transaksi</th>
         </tr>
       </thead>
-      <tbody>${baris}</tbody>
+      <tbody>
+  `;
+
+  listRuangan.forEach(r => {
+    const d = mapRuangan[r];
+    html += `
+      <tr>
+        <td class="col-nama">${r}</td>
+        <td class="${d.obat > 0 ? 'lap-num' : 'lap-num-0'}">${d.obat}</td>
+        <td class="${d.bmhp > 0 ? 'lap-num' : 'lap-num-0'}">${d.bmhp}</td>
+        <td class="${d.b3 > 0 ? 'lap-num' : 'lap-num-0'}">${d.b3}</td>
+        <td class="${d.cairan > 0 ? 'lap-num' : 'lap-num-0'}">${d.cairan}</td>
+        <td class="lap-num"><b>${d.total}</b></td>
+      </tr>
+    `;
+  });
+
+  html += `
+      </tbody>
       <tfoot>
         <tr>
-          <td colspan="2" class="col-nama">TOTAL</td>
+          <td class="col-nama">TOTAL SELURUHNYA</td>
           <td>${totObat}</td>
           <td>${totBmhp}</td>
           <td>${totB3}</td>
@@ -944,285 +1373,67 @@ function renderLaporan() {
           <td>${totAll}</td>
         </tr>
       </tfoot>
-    </table>`;
+    </table>
+    <div class="lap-info">* Rekapitulasi berdasarkan frekuensi ID Mutasi yang tercatat</div>
+  `;
+
+  wrap.innerHTML = html;
 }
 
-async function cetakLaporan() {
-  const tabel = document.getElementById("laporan-tabel");
-  if (!tabel) { showToast("Tidak ada data untuk dicetak.","error"); return; }
-  const tahun  = document.getElementById("lap-tahun")?.value  || "Semua Tahun";
-  const bulan  = document.getElementById("lap-bulan")?.options[document.getElementById("lap-bulan").selectedIndex]?.text || "Semua Bulan";
-  const status = document.getElementById("lap-status")?.value || "Semua Status";
-  const win = window.open("","_blank");
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Laporan Amprahan Farmasi</title>
-    <style>
-      body{font-family:Arial,sans-serif;font-size:12px;padding:20px}
-      h2{color:#1a56db;margin-bottom:4px}
-      p{font-size:11px;color:#666;margin-bottom:16px}
-      table{width:100%;border-collapse:collapse}
-      th{background:#1a56db;color:#fff;padding:8px 10px;text-align:center;font-size:11px}
-      th.lap-ruangan{text-align:left}
-      td{padding:6px 10px;border-bottom:1px solid #e0e0e0;font-size:11px}
-      td.lap-num{text-align:center}
-      td.lap-ruangan{text-align:left}
-      td.lap-no{text-align:center;color:#888}
-      tfoot td{font-weight:700;background:#f0f2f5;border-top:2px solid #1a56db}
-      .lap-num-total{font-weight:700;color:#1a56db}
-      @media print{button{display:none}}
-    </style></head><body>
-    <h2>💊 Laporan Amprahan Farmasi</h2>
-    <p>Periode: ${tahun} — ${bulan} &nbsp;|&nbsp; Status: ${status} &nbsp;|&nbsp; Dicetak: ${new Date().toLocaleDateString("id-ID")}</p>
-    ${tabel.outerHTML}
-    <script>window.onload=()=>window.print()<\/script>
-    </body></html>`);
-  win.document.close();
+function cetakLaporan() {
+  window.print();
 }
 
-async function kirimAmprahan() {
-  const idmutasi=document.getElementById("f-idmutasi").value.trim();
-  const jenis=document.getElementById("f-jenis").value;
-  const kategori=document.getElementById("f-kategori").value;
-  const tanggal=document.getElementById("f-tanggal").value;
-  const ket=document.getElementById("f-keterangan").value.trim();
-  if(!idmutasi||!jenis||!kategori||!tanggal){ showToast("Lengkapi semua field yang wajib diisi.","error"); return; }
-  const btn=document.getElementById("btn-kirim");
-  btn.disabled=true; btn.textContent="Mengirim...";
-  try {
-    const res=await api({ action:"kirimAmprahan", asalRuangan:user.ruangan, namaPetugas:user.nama, tglAmprahan:tanggal, noIdMutasi:idmutasi, jenisAmprahan:jenis, kategori, keterangan:ket });
-    if(res.ok){ showToast("✅ Amprahan berhasil dikirim! ID: "+res.idTransaksi,"success"); resetForm(); }
-    else showToast("Gagal: "+res.msg,"error");
-  } catch(e){ showToast("Gagal terhubung ke server.","error"); }
-  btn.disabled=false; btn.textContent="Kirim Amprahan";
-}
-function resetForm() {
-  document.getElementById("f-idmutasi").value="";
-  document.getElementById("f-jenis").value="";
-  document.getElementById("f-kategori").value="";
-  document.getElementById("f-keterangan").value="";
-  document.getElementById("f-tanggal").value=hariIni();
-}
+// ── PAGINATION RENDERER GLOBAL ──
+function renderPagination(totalItems, currentPage, containerId, onPageChange) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  const totalPages = Math.ceil(totalItems / PAGE_SIZE);
 
-// ── STATUS SAYA ──
-async function loadAmprahan() {
-  const el=document.getElementById("list-status");
-  el.innerHTML=loadingHtml(); document.getElementById("pag-status").innerHTML="";
-  try {
-    const res=await api({ action:"getAmprahan", role:user.role, nama:user.nama, ruangan:user.ruangan });
-    if(res.ok){ allAmprahan=res.data; pagStatus=1; renderStatus(); }
-    else el.innerHTML=`<div class="empty">Gagal memuat data: ${res.msg}</div>`;
-  } catch(e){ el.innerHTML=`<div class="empty">Gagal terhubung ke server.</div>`; }
-}
-function setFilterStatus(f,el) {
-  filterStatus=f; pagStatus=1;
-  document.querySelectorAll("#tab-status .chip").forEach(c=>c.classList.remove("active"));
-  el.classList.add("active"); renderStatus();
-}
-function renderStatus() {
-  const data=allAmprahan.filter(d=>filterStatus==="semua"||d.status===filterStatus);
-  const el=document.getElementById("list-status");
-  if(!data.length){ el.innerHTML=`<div class="empty">Tidak ada amprahan ditemukan.</div>`; document.getElementById("pag-status").innerHTML=""; return; }
-  const totalHal=Math.ceil(data.length/PAGE_SIZE);
-  if(pagStatus>totalHal) pagStatus=totalHal;
-  el.innerHTML=data.slice((pagStatus-1)*PAGE_SIZE,pagStatus*PAGE_SIZE).map(d=>ampItemHtml(d,false)).join("");
-  renderPagination("pag-status",pagStatus,totalHal,data.length,"gotoPagStatus");
-}
-
-// ── DASHBOARD GUDANG ──
-async function loadGudang() {
-  document.getElementById("list-gudang").innerHTML=loadingHtml();
-  document.getElementById("pag-gudang").innerHTML="";
-  try {
-    const resData=await api({ action:"getAmprahan", role:user.role, nama:user.nama, ruangan:user.ruangan });
-    if(resData.ok) {
-      dataGudang=user.role==="kepala_gudang"?resData.data:resData.data.filter(d=>isJenisSesuaiRole(d.jenisAmprahan,user.role));
-      dupSet=getDuplikatIdMutasi(dataGudang);
-      dataGudang.forEach(d=>idKnown.add(d.idTransaksi));
-      pagGudang=1; hitungStatLokal(dataGudang); renderGudang();
-    }
-  } catch(e){ document.getElementById("list-gudang").innerHTML=`<div class="empty">Gagal terhubung ke server.</div>`; }
-}
-
-function hitungStatLokal(data) {
-  const jenisLabel={ gudang_obat:"Obat", gudang_bhp:"BMHP / Cairan / B3", kepala_gudang:"Semua Jenis" };
-  const label=jenisLabel[user.role]||"";
-  const sub=label?`<div style="font-size:9px;color:#999;margin-top:2px">${label}</div>`:"";
-  document.getElementById("stat-grid").innerHTML=`
-    <div class="stat total"><div class="stat-num">${data.length}</div><div class="stat-label">Total</div>${sub}</div>
-    <div class="stat belum"><div class="stat-num">${data.filter(d=>d.status==="Belum Dilayani").length}</div><div class="stat-label">Belum Dilayani</div>${sub}</div>
-    <div class="stat sudah"><div class="stat-num">${data.filter(d=>d.status==="Sudah Dilayani").length}</div><div class="stat-label">Sudah Dilayani</div>${sub}</div>
-    <div class="stat batal"><div class="stat-num">${data.filter(d=>d.status==="Batal").length}</div><div class="stat-label">Batal</div>${sub}</div>`;
-}
-
-function setFilterGudang(f,el) {
-  filterGudang=f; pagGudang=1;
-  document.querySelectorAll("#tab-gudang .panel-kiri .filter-bar:nth-child(4) .chip").forEach(c=>c.classList.remove("active"));
-  el.classList.add("active"); renderGudang();
-}
-function setFilterKategori(f,el) {
-  filterKategori=f; pagGudang=1;
-  document.querySelectorAll("#filter-bar-kategori .chip").forEach(c=>c.classList.remove("active"));
-  el.classList.add("active"); renderGudang();
-}
-function setFilterJenis(f,el) {
-  filterJenis=f; pagGudang=1;
-  document.querySelectorAll("#filter-bar-jenis .chip").forEach(c=>c.classList.remove("active"));
-  el.classList.add("active"); renderGudang();
-}
-function resetPagGudang() {
-  pagGudang=1;
-  filterTglDari=document.getElementById("filter-tgl-dari")?.value||"";
-  filterTglSampai=document.getElementById("filter-tgl-sampai")?.value||"";
-  renderGudang();
-}
-
-function getDuplikatIdMutasi(data) {
-  const counter={};
-  data.forEach(d=>{ const id=String(d.noIdMutasi??"").trim(); if(!id) return; counter[id]=(counter[id]||0)+1; });
-  return new Set(Object.keys(counter).filter(k=>counter[k]>1));
-}
-
-function renderGudang() {
-  const q=(document.getElementById("search-gudang").value||"").toLowerCase();
-  const data=dataGudang.filter(d=>{
-    const mS=filterGudang==="semua"||d.status===filterGudang;
-    const mK=filterKategori==="semua"||(d.kategori||"").toLowerCase()===filterKategori.toLowerCase();
-    const mJ=filterJenis==="semua"||(d.jenisAmprahan||"").toLowerCase()===filterJenis.toLowerCase();
-    const mQ=!q||(d.asalRuangan||"").toLowerCase().includes(q)||(d.namaPetugas||"").toLowerCase().includes(q)||(d.idTransaksi||"").toLowerCase().includes(q)||String(d.noIdMutasi??"").toLowerCase().includes(q);
-    const tgl=normTgl(d.tglAmprahan);
-    const mD=!filterTglDari||tgl>=filterTglDari;
-    const mS2=!filterTglSampai||tgl<=filterTglSampai;
-    return mS&&mK&&mJ&&mQ&&mD&&mS2;
-  });
-  const el=document.getElementById("list-gudang");
-  if(!data.length){ el.innerHTML=`<div class="empty">Tidak ada data ditemukan.</div>`; document.getElementById("pag-gudang").innerHTML=""; return; }
-  const dupWarning=dupSet.size>0?`<div class="dup-warning-bar">⚠️ ${dupSet.size} ID Mutasi duplikat — ditandai merah.</div>`:"";
-  const totalHal=Math.ceil(data.length/PAGE_SIZE);
-  if(pagGudang>totalHal) pagGudang=totalHal;
-  el.innerHTML=dupWarning+data.slice((pagGudang-1)*PAGE_SIZE,pagGudang*PAGE_SIZE).map(d=>ampItemHtml(d,true)).join("");
-  renderPagination("pag-gudang",pagGudang,totalHal,data.length,"gotoPagGudang");
-}
-
-function renderPagination(containerId,halAktif,totalHal,totalData,fnName) {
-  const el=document.getElementById(containerId);
-  if(totalHal<=1){ el.innerHTML=""; return; }
-  const awal=(halAktif-1)*PAGE_SIZE+1;
-  const akhir=Math.min(halAktif*PAGE_SIZE,totalData);
-  let pages=[];
-  if(totalHal<=7){ for(let i=1;i<=totalHal;i++) pages.push(i); }
-  else {
-    pages=[1];
-    if(halAktif>3) pages.push("...");
-    for(let i=Math.max(2,halAktif-1);i<=Math.min(totalHal-1,halAktif+1);i++) pages.push(i);
-    if(halAktif<totalHal-2) pages.push("...");
-    pages.push(totalHal);
+  if (totalPages <= 1) {
+    container.innerHTML = "";
+    return;
   }
-  const tombol=pages.map(p=>p==="..."?`<span class="pag-info">…</span>`:`<button class="pag-btn${p===halAktif?" active":""}" onclick="${fnName}(${p})">${p}</button>`).join("");
-  el.innerHTML=`<div class="pagination"><button class="pag-btn" onclick="${fnName}(${halAktif-1})" ${halAktif===1?"disabled":""}>‹</button>${tombol}<button class="pag-btn" onclick="${fnName}(${halAktif+1})" ${halAktif===totalHal?"disabled":""}>›</button><span class="pag-info">${awal}–${akhir} / ${totalData}</span></div>`;
+
+  let html = '<div class="pagination">';
+  html += `<button class="pag-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="window._pagCB('${containerId}', ${currentPage - 1})">❮</button>`;
+
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+      html += `<button class="pag-btn ${i === currentPage ? 'active' : ''}" onclick="window._pagCB('${containerId}', ${i})">${i}</button>`;
+    } else if (i === currentPage - 2 || i === currentPage + 2) {
+      html += `<span class="pag-info">...</span>`;
+    }
+  }
+
+  html += `<button class="pag-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="window._pagCB('${containerId}', ${currentPage + 1})">❯</button>`;
+  html += `</div>`;
+
+  container.innerHTML = html;
+
+  window._pagCallbacks = window._pagCallbacks || {};
+  window._pagCallbacks[containerId] = onPageChange;
 }
 
-function normTgl(tgl) {
-  if(!tgl) return "";
-  const s=String(tgl).trim();
-  if(s.includes("/")){ const p=s.split(" ")[0].split("/"); if(p.length===3) return p[2]+"-"+p[1].padStart(2,"0")+"-"+p[0].padStart(2,"0"); }
-  return s.substring(0,10);
-}
-function resetFilterTanggal() {
-  document.getElementById("filter-tgl-dari").value="";
-  document.getElementById("filter-tgl-sampai").value="";
-  filterTglDari=""; filterTglSampai=""; pagGudang=1; renderGudang();
-}
-function filterHariIni() {
-  const h=hariIni();
-  document.getElementById("filter-tgl-dari").value=h;
-  document.getElementById("filter-tgl-sampai").value=h;
-  filterTglDari=h; filterTglSampai=h; pagGudang=1; renderGudang();
-}
-function tutupPengumuman(){ document.getElementById("blok-pengumuman").style.display="none"; ajustSplitHeight(); }
-function gotoPagStatus(p){ pagStatus=p; renderStatus(); }
-function gotoPagGudang(p){ pagGudang=p; renderGudang(); }
+window._pagCB = function(containerId, page) {
+  if (window._pagCallbacks && window._pagCallbacks[containerId]) {
+    window._pagCallbacks[containerId](page);
+  }
+};
 
-// ── RENDER ITEM ──
-function ampItemHtml(d,isGudang) {
-  const sc=d.status==="Sudah Dilayani"?"sudah":d.status==="Batal"?"batal":"belum";
-  const idMutasiHtml=dupSet.has(String(d.noIdMutasi??"").trim())?`<span class="amp-idmutasi-dup">${d.noIdMutasi}</span>`:d.noIdMutasi;
-  return `
-  <div class="amp-item ${sc}">
-    <div class="amp-header">
-      <div><span class="amp-id">${d.idTransaksi}</span><span style="font-size:10px;color:#999;margin-left:6px">${d.timestamp||""}</span></div>
-      <span class="badge badge-${sc}">${d.status}</span>
-    </div>
-    <div class="amp-meta">
-      <span>🏥 ${d.asalRuangan}</span><span>👤 ${d.namaPetugas}</span>
-      <span>💊 ${d.jenisAmprahan}</span><span>⚡ ${d.kategori}</span>
-      <span>🔖 ${idMutasiHtml}</span><span>📅 ${d.tglAmprahan}</span>
-    </div>
-    ${d.keterangan?`<div class="amp-keterangan">📝 ${d.keterangan}</div>`:""}
-    ${d.catatanGudang?`<div class="amp-catatan">💬 ${d.catatanGudang}${d.tglBalasan?" · "+d.tglBalasan:""}</div>`:""}
-    ${isGudang?`<div style="margin-top:8px"><button class="btn btn-warning btn-sm" onclick="bukaModal('${d.idTransaksi}')">✏️ Update Status</button></div>`:""}
-  </div>`;
-}
-
-// ── MODAL ──
-function bukaModal(id) {
-  const d=dataGudang.find(x=>x.idTransaksi===id);
-  if(!d) return;
-  editId=id;
-  document.getElementById("modal-detail").innerHTML=`
-    <div class="modal-row"><span>ID Transaksi</span><span><b>${d.idTransaksi}</b></span></div>
-    <div class="modal-row"><span>Ruangan</span><span>${d.asalRuangan}</span></div>
-    <div class="modal-row"><span>Petugas</span><span>${d.namaPetugas}</span></div>
-    <div class="modal-row"><span>Jenis</span><span>${d.jenisAmprahan} · ${d.kategori}</span></div>
-    <div class="modal-row"><span>ID Mutasi</span><span>${d.noIdMutasi}</span></div>
-    <div class="modal-row"><span>Status saat ini</span><span>${d.status}</span></div>
-    ${d.keterangan?`<div class="modal-row"><span>Keterangan peminta</span><span style="color:#555;font-size:12px;max-width:200px;text-align:right">${d.keterangan}</span></div>`:""}`;
-  document.getElementById("modal-status").value=d.status;
-  document.getElementById("modal-catatan").value=d.catatanGudang||"";
-  document.getElementById("modal-update").classList.add("open");
-}
-function tutupModal(){ document.getElementById("modal-update").classList.remove("open"); editId=null; }
-async function simpanStatus() {
-  if(!editId) return;
-  const status=document.getElementById("modal-status").value;
-  const catatan=document.getElementById("modal-catatan").value.trim();
-  const btn=document.getElementById("btn-simpan-status");
-  btn.disabled=true; btn.textContent="Menyimpan...";
-  try {
-    const res=await api({ action:"updateStatus", idTransaksi:editId, status, catatan });
-    if(res.ok){ showToast("✅ Status berhasil diperbarui.","success"); tutupModal(); idKnown.clear(); loadGudang(); }
-    else showToast("Gagal: "+res.msg,"error");
-  } catch(e){ showToast("Gagal terhubung ke server.","error"); }
-  btn.disabled=false; btn.textContent="Simpan";
-}
-
-// ── RKO ──
-const BULAN_ID=["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
-function bulanDepanStr(){ const n=new Date(); return "RKO "+BULAN_ID[(n.getMonth()+1)%12]; }
-async function cekStatusRKO() {
-  const badge=document.getElementById("rko-status-badge");
-  if(!badge||!user) return;
-  if(user.role==="kepala_gudang"){ badge.className="rko-status kosong"; badge.textContent="📋 Kelola status RKO di sheet"; return; }
-  try {
-    const res=await api({ action:"getStatusRKO", ruangan:user.ruangan });
-    const target=bulanDepanStr();
-    if(!res.ok||!res.statusRKO){ badge.className="rko-status merah"; badge.innerHTML="🔴 "+target+" — Belum dikerjakan"; return; }
-    const ss=res.statusRKO.trim().toUpperCase();
-    if(ss===target){ badge.className="rko-status hijau"; badge.innerHTML="🟢 "+ss+" — Sudah dikerjakan"; }
-    else { badge.className="rko-status merah"; badge.innerHTML="🔴 "+ss+" — Belum update ke "+target; }
-  } catch(e){ badge.className="rko-status kosong"; badge.textContent="⚠️ Gagal cek status RKO"; }
-}
-
-// ── HELPERS ──
-function hariIni(){ return new Date().toISOString().split("T")[0]; }
-function loadingHtml(){ return `<div class="loading"><div class="spinner"></div><br>Memuat data...</div>`; }
-function showToast(msg,type="info"){
-  const t=document.getElementById("toast");
-  t.textContent=msg; t.className="toast "+type+" show";
-  setTimeout(()=>t.classList.remove("show"),3500);
-}
-
-document.getElementById("modal-update").addEventListener("click",function(e){ if(e.target===this) tutupModal(); });
-document.getElementById("login-nama").addEventListener("keydown",e=>{ if(e.key==="Enter") document.getElementById("login-ruangan").focus(); });
+// ── INITIALIZATION ON LOAD ──
+window.addEventListener("DOMContentLoaded", () => {
+  const saved = localStorage.getItem("amprahan_user");
+  if (saved) {
+    try {
+      user = JSON.parse(saved);
+      initApp();
+    } catch(e) {
+      localStorage.removeItem("amprahan_user");
+    }
+  }
+});
 </script>
 </body>
 </html>
