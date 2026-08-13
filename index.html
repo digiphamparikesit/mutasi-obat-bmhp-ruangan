@@ -203,19 +203,32 @@
     background:#f0f2f5;z-index:45;overflow-y:auto;
   }
   .laporan-wrap{max-width:1100px;margin:0 auto;padding:16px}
+
+  /* ── STICKY AREA (filter + total) ── */
+  .lap-sticky-top{
+    position:sticky;
+    top:0;
+    z-index:30;
+    background:#f0f2f5;
+    padding-bottom:6px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom:8px;
+  }
   .laporan-filter{
     display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;
     background:#fff;padding:14px 16px;border-radius:10px;
-    box-shadow:0 1px 4px rgba(0,0,0,0.07);margin-bottom:14px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.07);margin-bottom:10px;
   }
   .laporan-filter-group{display:flex;flex-direction:column;gap:4px}
   .laporan-filter-group label{font-size:11px;font-weight:700;color:#555}
-  .laporan-filter-group select{
+  .laporan-filter-group select,
+  .laporan-filter-group input[type=date]{
     padding:6px 10px;border:1px solid #d0d5dd;border-radius:6px;
     font-size:13px;min-width:120px;background:#fff;
   }
+  .lap-tgl-separator{font-size:12px;color:#888;padding-bottom:6px;align-self:flex-end}
   .laporan-summary{
-    display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px;
+    display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:0;
   }
   .lap-sum-item{
     background:#fff;border-radius:10px;padding:14px 12px;
@@ -530,51 +543,66 @@
 <div id="tab-laporan" class="tab-panel laporan-panel" style="display:none">
   <div class="laporan-wrap">
 
-    <!-- FILTER BAR -->
-    <div class="laporan-filter">
-      <div class="laporan-filter-group">
-        <label>Tahun</label>
-        <select id="lap-tahun" onchange="renderLaporan()"></select>
-      </div>
-      <div class="laporan-filter-group">
-        <label>Bulan</label>
-        <select id="lap-bulan" onchange="renderLaporan()">
-          <option value="">Semua Bulan</option>
-          <option value="01">Januari</option>
-          <option value="02">Februari</option>
-          <option value="03">Maret</option>
-          <option value="04">April</option>
-          <option value="05">Mei</option>
-          <option value="06">Juni</option>
-          <option value="07">Juli</option>
-          <option value="08">Agustus</option>
-          <option value="09">September</option>
-          <option value="10">Oktober</option>
-          <option value="11">November</option>
-          <option value="12">Desember</option>
-        </select>
-      </div>
-      <div class="laporan-filter-group">
-        <label>Status</label>
-        <select id="lap-status" onchange="renderLaporan()">
-          <option value="">Semua Status</option>
-          <option value="Belum Dilayani">Belum Dilayani</option>
-          <option value="Sudah Dilayani">Sudah Dilayani</option>
-          <option value="Batal">Batal</option>
-        </select>
-      </div>
-      <button class="btn btn-secondary btn-sm" onclick="loadLaporan()">↻ Refresh</button>
-      <button class="btn btn-primary btn-sm" onclick="cetakLaporan()">🖨️ Cetak</button>
-    </div>
+    <!-- STICKY TOP: FILTER + TOTAL -->
+    <div class="lap-sticky-top">
 
-    <!-- RINGKASAN TOTAL -->
-    <div class="laporan-summary" id="lap-summary">
-      <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-obat">-</span><span class="lap-sum-label">Mutasi Obat</span></div>
-      <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-bmhp">-</span><span class="lap-sum-label">Mutasi BMHP</span></div>
-      <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-b3">-</span><span class="lap-sum-label">Mutasi B3</span></div>
-      <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-cairan">-</span><span class="lap-sum-label">Mutasi Cairan</span></div>
-      <div class="lap-sum-item lap-sum-total"><span class="lap-sum-num" id="lap-tot-all">-</span><span class="lap-sum-label">Total ID Mutasi</span></div>
-    </div>
+      <!-- FILTER BAR -->
+      <div class="laporan-filter">
+        <div class="laporan-filter-group">
+          <label>Tahun</label>
+          <select id="lap-tahun" onchange="renderLaporan()"></select>
+        </div>
+        <div class="laporan-filter-group">
+          <label>Bulan</label>
+          <select id="lap-bulan" onchange="renderLaporan()">
+            <option value="">Semua Bulan</option>
+            <option value="01">Januari</option>
+            <option value="02">Februari</option>
+            <option value="03">Maret</option>
+            <option value="04">April</option>
+            <option value="05">Mei</option>
+            <option value="06">Juni</option>
+            <option value="07">Juli</option>
+            <option value="08">Agustus</option>
+            <option value="09">September</option>
+            <option value="10">Oktober</option>
+            <option value="11">November</option>
+            <option value="12">Desember</option>
+          </select>
+        </div>
+        <div class="laporan-filter-group">
+          <label>📅 Dari Tanggal</label>
+          <input type="date" id="lap-tgl-dari" onchange="renderLaporan()">
+        </div>
+        <span class="lap-tgl-separator">s/d</span>
+        <div class="laporan-filter-group">
+          <label>📅 Sampai Tanggal</label>
+          <input type="date" id="lap-tgl-sampai" onchange="renderLaporan()">
+        </div>
+        <div class="laporan-filter-group">
+          <label>Status</label>
+          <select id="lap-status" onchange="renderLaporan()">
+            <option value="">Semua Status</option>
+            <option value="Belum Dilayani">Belum Dilayani</option>
+            <option value="Sudah Dilayani">Sudah Dilayani</option>
+            <option value="Batal">Batal</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="resetFilterLaporan()">✕ Reset</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadLaporan()">↻ Refresh</button>
+        <button class="btn btn-primary btn-sm" onclick="cetakLaporan()">🖨️ Cetak</button>
+      </div>
+
+      <!-- RINGKASAN TOTAL (STICKY) -->
+      <div class="laporan-summary" id="lap-summary">
+        <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-obat">-</span><span class="lap-sum-label">Mutasi Obat</span></div>
+        <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-bmhp">-</span><span class="lap-sum-label">Mutasi BMHP</span></div>
+        <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-b3">-</span><span class="lap-sum-label">Mutasi B3</span></div>
+        <div class="lap-sum-item"><span class="lap-sum-num" id="lap-tot-cairan">-</span><span class="lap-sum-label">Mutasi Cairan</span></div>
+        <div class="lap-sum-item lap-sum-total"><span class="lap-sum-num" id="lap-tot-all">-</span><span class="lap-sum-label">Total ID Mutasi</span></div>
+      </div>
+
+    </div><!-- end lap-sticky-top -->
 
     <!-- TABEL -->
     <div class="laporan-table-wrap" id="lap-table-wrap">
@@ -800,6 +828,17 @@ function switchTab(name) {
 // ── LAPORAN ────────────────────────────────────────────────────
 let dataLaporan = []; // cache raw data dari server untuk laporan
 
+function resetFilterLaporan() {
+  const ids = ["lap-tahun","lap-bulan","lap-tgl-dari","lap-tgl-sampai","lap-status"];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  // Kembalikan tahun ke semua (isi ulang dropdown tanpa filter)
+  isiDropdownTahun(dataLaporan);
+  renderLaporan();
+}
+
 async function loadLaporan() {
   const wrap = document.getElementById("lap-table-wrap");
   if (!wrap) return;
@@ -842,17 +881,21 @@ function renderLaporan() {
   const wrap = document.getElementById("lap-table-wrap");
   if (!wrap || !dataLaporan.length) return;
 
-  const tahun  = document.getElementById("lap-tahun")?.value  || "";
-  const bulan  = document.getElementById("lap-bulan")?.value  || "";
-  const status = document.getElementById("lap-status")?.value || "";
+  const tahun    = document.getElementById("lap-tahun")?.value    || "";
+  const bulan    = document.getElementById("lap-bulan")?.value    || "";
+  const tglDari  = document.getElementById("lap-tgl-dari")?.value || "";
+  const tglSmpai = document.getElementById("lap-tgl-sampai")?.value || "";
+  const status   = document.getElementById("lap-status")?.value   || "";
 
   // Filter data sesuai pilihan
   const filtered = dataLaporan.filter(d => {
     const tgl = normTgl(d.tglAmprahan); // YYYY-MM-DD
-    const mT = !tahun || tgl.startsWith(tahun);
-    const mB = !bulan || tgl.substring(5,7) === bulan;
-    const mS = !status || d.status === status;
-    return mT && mB && mS;
+    const mT  = !tahun    || tgl.startsWith(tahun);
+    const mB  = !bulan    || tgl.substring(5,7) === bulan;
+    const mD  = !tglDari  || tgl >= tglDari;
+    const mS2 = !tglSmpai || tgl <= tglSmpai;
+    const mS  = !status   || d.status === status;
+    return mT && mB && mD && mS2 && mS;
   });
 
   if (!filtered.length) {
@@ -1226,4 +1269,3 @@ document.getElementById("login-nama").addEventListener("keydown",e=>{ if(e.key==
 </script>
 </body>
 </html>
-https://script.google.com/macros/s/AKfycbx1ZAs4i6tQKH7a9eE9_2tIZaJDmwd23nd0USBZ9MtqWbEX_yLLAzxaFdj0nx6yftH8/exec
