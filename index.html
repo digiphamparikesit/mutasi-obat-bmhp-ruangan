@@ -573,6 +573,11 @@
 
 <script>
 // ── CONFIG & GLOBAL STATE ──
+// PENTING: URL ini harus persis sama dengan URL "Web app" hasil Deploy terbaru
+// dari Apps Script (Deploy > New deployment > Web app). Setiap kali kode
+// Apps Script diubah, kamu HARUS membuat versi deployment baru (ikon pensil
+// di "Manage deployments" > pilih "New version" > Deploy), kalau tidak URL
+// /exec ini akan tetap menjalankan kode versi lama.
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyi8gZInXnO4h304mK83E8T1tqJvhHpxp03qIn03Xo/exec";
 let user = null;
 let allAmprahan = [];
@@ -641,7 +646,8 @@ async function doLogin(){
       err.style.display = "block";
     }
   } catch(e){
-    err.textContent = "Gagal terhubung ke server."; err.style.display = "block";
+    err.textContent = pesanErrorRamah(e);
+    err.style.display = "block";
   }
   btn.disabled = false; btn.textContent = "Masuk";
 }
@@ -719,7 +725,7 @@ async function cekPengumuman(){
       document.getElementById("pg-waktu").textContent = res.pengumuman.waktu || "";
       blok.style.display = "block";
     } else blok.style.display = "none";
-  } catch(e){ blok.style.display = "none"; }
+  } catch(e){ console.error("cekPengumuman:", e); blok.style.display = "none"; }
 }
 function tutupPengumuman(){ document.getElementById("blok-pengumuman").style.display = "none"; }
 
@@ -751,6 +757,7 @@ async function cekStatusRKO(){
       badge.innerHTML = "🔴 " + ss + " — Belum update ke " + target;
     }
   } catch(e){
+    console.error("cekStatusRKO:", e);
     badge.className = "rko-status kosong";
     badge.textContent = "⚠️ Gagal cek status RKO";
   }
@@ -792,7 +799,7 @@ async function kirimAmprahan(){
       resetForm();
     } else showToast("Gagal: " + res.msg, "error");
   } catch(e){
-    showToast("Gagal terhubung ke server.", "error");
+    showToast(pesanErrorRamah(e), "error");
   }
   btn.disabled = false; btn.textContent = "Kirim Amprahan";
 }
@@ -818,7 +825,7 @@ async function loadAmprahan(){
       renderStatus();
     } else el.innerHTML = `<div class="empty">Gagal memuat data: ${res.msg}</div>`;
   } catch(e){
-    el.innerHTML = `<div class="empty">Gagal terhubung ke server.</div>`;
+    el.innerHTML = `<div class="empty">${pesanErrorRamah(e)}</div>`;
   }
 }
 
@@ -875,7 +882,7 @@ async function loadGudang(){
       renderGudang();
     } else el.innerHTML = `<div class="empty">Gagal memuat data: ${res.msg}</div>`;
   } catch(e){
-    el.innerHTML = `<div class="empty">Gagal terhubung ke server.</div>`;
+    el.innerHTML = `<div class="empty">${pesanErrorRamah(e)}</div>`;
   }
 }
 
@@ -1034,7 +1041,7 @@ async function simpanStatus(){
       tutupModal();
       loadGudang();
     } else showToast("Gagal: " + res.msg, "error");
-  } catch(e){ showToast("Gagal terhubung ke server.","error"); }
+  } catch(e){ showToast(pesanErrorRamah(e),"error"); }
   btn.disabled = false; btn.textContent = "Simpan";
 }
 
@@ -1064,7 +1071,7 @@ async function loadLaporan(){
     dataLaporan = res.data;
     isiDropdownTahun(dataLaporan);
     renderLaporan();
-  } catch(e){ wrap.innerHTML = `<div class="empty">Gagal terhubung ke server.</div>`; }
+  } catch(e){ wrap.innerHTML = `<div class="empty">${pesanErrorRamah(e)}</div>`; }
 }
 
 function isiDropdownTahun(list){
@@ -1264,7 +1271,7 @@ async function autoRefresh(){
       renderGudang();
       showToast("🔔 " + baru.length + " amprahan baru masuk!", "info");
     }
-  } catch(e){}
+  } catch(e){ console.error("autoRefresh:", e); }
 }
 
 function mulaiAutoRefresh(){
@@ -1281,13 +1288,59 @@ function stopAutoRefresh(){
 }
 
 // ── API HELPER ──
+// Dibuat lebih "verbose" supaya kalau gagal, kita tahu PERSIS di titik mana
+// gagalnya (jaringan/CORS, HTTP error, atau respons bukan JSON) — ini
+// dicetak ke console (F12 > Console) dan ditampilkan lebih jelas ke user.
 async function api(payload){
-  const res = await fetch(SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload)
-  });
-  return await res.json();
+  let res;
+  try {
+    res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      // text/plain sengaja dipakai supaya browser TIDAK mengirim preflight
+      // OPTIONS (Apps Script tidak punya handler doOptions bawaan, jadi
+      // preflight akan gagal kalau content-type-nya application/json).
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      redirect: "follow",
+      body: JSON.stringify(payload)
+    });
+  } catch (networkErr) {
+    console.error("[api] Network/CORS error saat memanggil:", SCRIPT_URL, networkErr);
+    const e = new Error("NETWORK");
+    e.detail = networkErr;
+    throw e;
+  }
+
+  if (!res.ok) {
+    console.error("[api] HTTP error:", res.status, res.statusText);
+    const e = new Error("HTTP_" + res.status);
+    throw e;
+  }
+
+  const rawText = await res.text();
+  try {
+    return JSON.parse(rawText);
+  } catch (parseErr) {
+    console.error("[api] Respons bukan JSON. 300 karakter pertama:", rawText.slice(0, 300));
+    const e = new Error("NOT_JSON");
+    e.raw = rawText;
+    throw e;
+  }
+}
+
+// Ubah error teknis dari api() jadi pesan yang membantu diagnosis di layar,
+// sekaligus tetap mencetak detail lengkap ke console untuk developer.
+function pesanErrorRamah(e){
+  const msg = e && e.message;
+  if(msg === "NETWORK"){
+    return "Gagal terhubung ke server (jaringan/CORS). Cek koneksi internet Anda, dan pastikan SCRIPT_URL di kode masih aktif.";
+  }
+  if(msg && msg.indexOf("HTTP_") === 0){
+    return "Server merespon error (" + msg.replace("HTTP_","") + "). Coba lagi beberapa saat.";
+  }
+  if(msg === "NOT_JSON"){
+    return "Server tidak mengembalikan data yang valid. Kemungkinan besar deployment Apps Script belum di-set akses 'Anyone', atau URL deployment sudah berubah — cek console (F12) untuk detail.";
+  }
+  return "Gagal terhubung ke server.";
 }
 
 // ── UTILS ──
