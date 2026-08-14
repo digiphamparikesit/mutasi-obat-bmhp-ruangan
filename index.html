@@ -237,7 +237,12 @@
   .laporan-filter{
     display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;
     background:#fff;padding:14px 16px;border-radius:10px;
-    box-shadow:0 1px 4px rgba(0,0,0,0.07);margin-bottom:10px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.07);margin-bottom:8px;
+  }
+  .laporan-filter-tgl{
+    margin-top:0;
+    background:#f0f5ff;
+    border:1px solid #c7d7f9;
   }
   .laporan-filter-group{display:flex;flex-direction:column;gap:4px}
   .laporan-filter-group label{font-size:11px;font-weight:700;color:#555}
@@ -564,7 +569,7 @@
     <!-- STICKY TOP: FILTER + TOTAL -->
     <div class="lap-sticky-top">
 
-      <!-- FILTER BAR -->
+      <!-- FILTER BAR BARIS 1: Tahun, Bulan, Status, Tombol -->
       <div class="laporan-filter">
         <div class="laporan-filter-group">
           <label>Tahun</label>
@@ -589,15 +594,6 @@
           </select>
         </div>
         <div class="laporan-filter-group">
-          <label>📅 Dari Tanggal</label>
-          <input type="date" id="lap-tgl-dari" onchange="renderLaporan()">
-        </div>
-        <span class="lap-tgl-separator">s/d</span>
-        <div class="laporan-filter-group">
-          <label>📅 Sampai Tanggal</label>
-          <input type="date" id="lap-tgl-sampai" onchange="renderLaporan()">
-        </div>
-        <div class="laporan-filter-group">
           <label>Status</label>
           <select id="lap-status" onchange="renderLaporan()">
             <option value="">Semua Status</option>
@@ -609,6 +605,21 @@
         <button class="btn btn-secondary btn-sm" onclick="resetFilterLaporan()">✕ Reset</button>
         <button class="btn btn-secondary btn-sm" onclick="loadLaporan()">↻ Refresh</button>
         <button class="btn btn-primary btn-sm" onclick="cetakLaporan()">🖨️ Cetak</button>
+      </div>
+
+      <!-- FILTER BAR BARIS 2: Rentang Tanggal -->
+      <div class="laporan-filter laporan-filter-tgl">
+        <span style="font-size:12px;font-weight:700;color:#555;white-space:nowrap;align-self:center">📅 Rentang Tanggal:</span>
+        <div class="laporan-filter-group">
+          <label>Dari Tanggal</label>
+          <input type="date" id="lap-tgl-dari" onchange="renderLaporan()">
+        </div>
+        <span class="lap-tgl-separator">s/d</span>
+        <div class="laporan-filter-group">
+          <label>Sampai Tanggal</label>
+          <input type="date" id="lap-tgl-sampai" onchange="renderLaporan()">
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="resetTglLaporan()" style="align-self:flex-end">✕ Reset Tgl</button>
       </div>
 
       <!-- RINGKASAN TOTAL (STICKY) -->
@@ -849,6 +860,14 @@ function switchTab(name) {
 
 // ── LAPORAN ────────────────────────────────────────────────────
 let dataLaporan = []; // cache raw data dari server untuk laporan
+
+function resetTglLaporan() {
+  const dari = document.getElementById("lap-tgl-dari");
+  const sampai = document.getElementById("lap-tgl-sampai");
+  if(dari) dari.value="";
+  if(sampai) sampai.value="";
+  renderLaporan();
+}
 
 function resetFilterLaporan() {
   const ids = ["lap-tahun","lap-bulan","lap-tgl-dari","lap-tgl-sampai","lap-status"];
